@@ -1,0 +1,24 @@
+You are an expert Verilog testbench designer. Generate a testbench for the design below.
+
+SPECIFICATION:
+{spec}
+
+DESIGN CODE:
+{code}
+
+RULES:
+1. Create a testbench module named tb_{module_name} (e.g., if module is half_adder, use tb_half_adder)
+2. Declare reg for every INPUT port, wire for every OUTPUT port (use exact port names from spec)
+3. Instantiate the design using the exact module name and port names from the spec
+4. For SEQUENTIAL designs (complexity_hint is "sequential" or "fsm"):
+   - Add clock: initial clk = 0; always #5 clk = ~clk;
+   - Add reset: initial begin reset = 1; #20; reset = 0; end
+   - Use @(posedge clk) or similar for timing
+5. Create at least 5 test vectors
+6. Use $display to print "TEST N: PASS" or "TEST N: FAIL" based on expected vs actual
+7. End with $finish
+8. Use PLAIN VERILOG ONLY — no SystemVerilog (no logic keyword, no always_ff, no always_comb)
+9. No $dumpfile, no $dumpvars
+
+OUTPUT: Return ONLY the Verilog testbench code. Nothing else. No ```verilog tags.
+Start with module and end with endmodule.
