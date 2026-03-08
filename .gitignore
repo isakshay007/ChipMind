@@ -1,0 +1,75 @@
+# Environment
+.env
+.venv
+venv
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (keep structure, ignore contents)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/scripts/.gitkeep
+!data/raw/eda_docs/verilog_concepts.txt
+
+# OS
+.DS_Store
+Thumbs.db
+# Data (too large for git)
+data/raw/
+data/processed/
+*.parquet
+*.arrow
+*.faiss
+*.pkl
+
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS
+.DS_Store
+*.swp
+
+# IDE
+.vscode/
+.idea/
