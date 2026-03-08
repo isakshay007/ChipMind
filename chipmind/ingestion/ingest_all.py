@@ -26,8 +26,15 @@ def main() -> int:
 
     # 1. Verilog chunks
     console.print("\n[bold]1. Processing Verilog modules...[/bold]")
+    if not MODULES_PATH.exists():
+        console.print(f"[red]Modules file not found: {MODULES_PATH}[/red]")
+        console.print("Run 'make extract-modules' first (after 'make download-data').")
+        return 1
     verilog_chunker = VerilogChunker(MODULES_PATH)
     verilog_chunks = verilog_chunker.process_all()
+    if not verilog_chunks:
+        console.print("[red]No Verilog chunks produced. Check all_modules.jsonl has valid modules.[/red]")
+        return 1
 
     # 2. Doc chunks
     console.print("\n[bold]2. Processing EDA documentation...[/bold]")
@@ -42,6 +49,10 @@ def main() -> int:
     for c in doc_chunks:
         d = asdict(c)
         all_chunks.append(d)
+
+    if not all_chunks:
+        console.print("[red]No chunks to save. Verilog + doc chunks are empty.[/red]")
+        return 1
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_PATH, "w") as f:

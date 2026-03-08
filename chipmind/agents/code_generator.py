@@ -34,9 +34,14 @@ class CodeGeneratorAgent:
 
         # Step 1: Build retrieval query
         query = self._build_retrieval_query(spec)
+        if not query or not query.strip():
+            query = spec.get("module_name", "verilog") or "verilog"
 
         # Step 2: Retrieve similar modules
-        retrieved = self.retriever.search_code(query, k=5)
+        try:
+            retrieved = self.retriever.search_code(query, k=5)
+        except Exception:
+            retrieved = []
 
         # Step 3: Build prompt
         examples = self._format_examples(retrieved, max_examples=3)
@@ -44,16 +49,24 @@ class CodeGeneratorAgent:
         prompt = self.gen_prompt.format(spec=spec_str, examples=examples or "No examples available.")
 
         # Step 4: Call Groq
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.3,
-            max_tokens=2000,
-        )
-        raw = response.choices[0].message.content
-        tokens_used = response.usage.total_tokens if response.usage else 0
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=2000,
+            )
+            raw = response.choices[0].message.content or ""
+            tokens_used = response.usage.total_tokens if response.usage else 0
+        except Exception as e:
+            return {
+                "generated_code": "",
+                "retrieved_modules": retrieved,
+                "total_tokens_used": state.get("total_tokens_used", 0),
+                "error": str(e),
+            }
 
         # Step 5: Clean response
         code = self._clean_verilog(raw)
@@ -82,7 +95,10 @@ class CodeGeneratorAgent:
             for e in errors[:3]
         )
 
-        retrieved = self.retriever.search_code(error_query, k=3)
+        try:
+            retrieved = self.retriever.search_code(error_query or "verilog error", k=3)
+        except Exception:
+            retrieved = []
         examples = self._format_examples(retrieved, max_examples=3)
 
         # Step 3: Build debug prompt
@@ -95,16 +111,19 @@ class CodeGeneratorAgent:
         )
 
         # Step 4: Call Groq
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.2,
-            max_tokens=2000,
-        )
-        raw = response.choices[0].message.content
-        tokens_used = response.usage.total_tokens if response.usage else 0
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.2,
+                max_tokens=2000,
+            )
+            raw = response.choices[0].message.content or ""
+            tokens_used = response.usage.total_tokens if response.usage else 0
+        except Exception:
+            return {"generated_code": code, "debug_context": retrieved}
 
         # Step 5: Clean response
         fixed_code = self._clean_verilog(raw)

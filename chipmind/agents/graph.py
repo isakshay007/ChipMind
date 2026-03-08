@@ -96,7 +96,33 @@ class ChipMindGraph:
             }
 
         if tb:
-            sim_result = self.compiler.compile_and_simulate(code, tb)
+            try:
+                sim_result = self.compiler.compile_and_simulate(code, tb)
+            except Exception as e:
+                errors_list = [
+                    {
+                        "file": "",
+                        "line": 0,
+                        "error_type": "other",
+                        "message": str(e),
+                        "raw": str(e),
+                    }
+                ]
+                return {
+                    "compile_result": {"success": False, "errors": errors_list},
+                    "is_compiled": False,
+                    "is_functionally_correct": False,
+                    "errors": errors_list,
+                    "iteration_history": state.get("iteration_history", [])
+                    + [
+                        {
+                            "iteration": state.get("iteration", 0),
+                            "code": code,
+                            "compiled": False,
+                            "errors": errors_list,
+                        }
+                    ],
+                }
             errors_list = [
                 {
                     "file": e.file,
@@ -120,6 +146,19 @@ class ChipMindGraph:
             iteration_history = list(state.get("iteration_history", []))
             iteration_history.append(history_entry)
 
+            # When compiled but sim failed, pass sim output as "errors" for debug loop
+            errors_for_debug = errors_list
+            if sim_result.compiled and not sim_result.passed and sim_result.sim_output:
+                errors_for_debug = [
+                    {
+                        "line": 0,
+                        "error_type": "simulation_fail",
+                        "message": f"Simulation failed. Output: {sim_result.sim_output[:500]}",
+                        "file": "",
+                        "raw": sim_result.sim_output[:300],
+                    }
+                ]
+
             return {
                 "compile_result": {"success": sim_result.compiled, "errors": errors_list},
                 "sim_result": {
@@ -129,11 +168,37 @@ class ChipMindGraph:
                 },
                 "is_compiled": sim_result.compiled,
                 "is_functionally_correct": sim_result.compiled and sim_result.passed,
-                "errors": errors_list if not sim_result.compiled else [],
+                "errors": errors_for_debug if not (sim_result.compiled and sim_result.passed) else [],
                 "iteration_history": iteration_history,
             }
         else:
-            compile_result = self.compiler.compile(code)
+            try:
+                compile_result = self.compiler.compile(code)
+            except Exception as e:
+                errors_list = [
+                    {
+                        "file": "",
+                        "line": 0,
+                        "error_type": "other",
+                        "message": str(e),
+                        "raw": str(e),
+                    }
+                ]
+                return {
+                    "compile_result": {"success": False, "errors": errors_list},
+                    "is_compiled": False,
+                    "is_functionally_correct": False,
+                    "errors": errors_list,
+                    "iteration_history": state.get("iteration_history", [])
+                    + [
+                        {
+                            "iteration": state.get("iteration", 0),
+                            "code": code,
+                            "compiled": False,
+                            "errors": errors_list,
+                        }
+                    ],
+                }
             errors_list = [
                 {
                     "file": e.file,
@@ -175,13 +240,15 @@ class ChipMindGraph:
     def _should_continue(self, state: ChipMindState) -> str:
         """Routing function for conditional edge after compile."""
         compiled = state.get("is_compiled", False)
+        correct = state.get("is_functionally_correct", False)
+        has_tb = bool(state.get("generated_testbench"))
         iteration = state.get("iteration", 0)
         max_iter = state.get("max_iterations", 5)
 
-        # Compiled (sim pass/fail): finalize
-        if compiled:
+        # Success ONLY when: compiled AND (functionally correct OR no testbench)
+        if compiled and (correct or not has_tb):
             return "success"
-        # Compile failed: retry or give up
+        # Retry when: compile failed OR (compiled but sim failed)
         if iteration >= max_iter:
             return "give_up"
         return "retry"

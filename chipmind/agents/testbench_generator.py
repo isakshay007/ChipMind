@@ -39,14 +39,17 @@ class TestbenchGeneratorAgent:
             module_name=module_name,
         )
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_tokens=2000,
-        )
-        raw = response.choices[0].message.content
-        tokens_used = response.usage.total_tokens if response.usage else 0
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=2000,
+            )
+            raw = response.choices[0].message.content or ""
+            tokens_used = response.usage.total_tokens if response.usage else 0
+        except Exception:
+            return {"generated_testbench": "", "total_tokens_used": state.get("total_tokens_used", 0)}
 
         tb = self._clean_verilog(raw)
 

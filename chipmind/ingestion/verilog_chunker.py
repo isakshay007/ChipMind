@@ -64,39 +64,70 @@ def _clean_mg_verilog_description(desc: str) -> tuple[str, bool]:
     """
     Clean MG-Verilog descriptions that contain LLM prompt templates.
     Returns (cleaned_description, is_valid).
+    Be LESS aggressive — keep anything that looks like a description.
     """
-    if not desc or len(desc.strip()) < 10:
+    if not desc or not desc.strip():
         return "", False
 
     text = desc.strip()
 
-    # Remove XML/instruction tags
-    text = re.sub(r"<s>|</s>|\[INST\]|\[/INST\]", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"<<SYS>>|<<\/SYS>>", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"Do not include module, input and output definitions\.?", "", text, flags=re.IGNORECASE)
+    # Remove XML-like tags first
+    text = re.sub(r"<s>|</s>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\[INST\]|\[/INST\]", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"<<SYS>>|<<\/SYS>>|<</SYS>>", "", text, flags=re.IGNORECASE)
 
-    # Extract content after instruction phrases
+    # Extract content after instruction phrases (remove everything up to and including)
     for pattern in [
         r"Implement the Verilog module based on the following description\.?\s*",
         r"Complete the Verilog module based on the following description\.?\s*",
         r"Implement the Verilog module\.?\s*",
         r"Complete the Verilog module\.?\s*",
+        r"based on the following description\.?\s*",
+        r"following description\.?\s*",
+        r"Description:\s*",
+        r"following block[:\s]*",
     ]:
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
         if match:
             text = text[match.end() :].strip()
             break
 
-    # Remove common boilerplate
+    # Remove instruction boilerplate (but keep description content)
     text = re.sub(
-        r"Assume that signals are positive clock/clk edge triggered unless otherwise stated\.?\s*",
+        r"Do not include module, input and output definitions\.?",
         "",
         text,
         flags=re.IGNORECASE,
     )
-    text = re.sub(r"Assume that signals are [^.]+\.?\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"End the Verilog module code completion with ['\"]?endmodule['\"]?\.?",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"You only complete chats?\.?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"Assume that signals are positive clock/clk edge triggered unless otherwise stated\.?",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"Assume that signals are [^.]+\.?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
 
+    # Collapse whitespace, trim
     text = re.sub(r"\s+", " ", text).strip()
+
+    # Valid if we have meaningful content (> 10 chars)
     if len(text) < 10:
         return "", False
     return text, True
@@ -153,15 +184,70 @@ def _classify_complexity(code: str) -> str:
     return "complex"
 
 
-def _extract_tags(module_name: str, complexity: str) -> list[str]:
-    """Extract tags from module name and complexity."""
+def _extract_tags_from_code(code: str) -> set[str]:
+    """Extract tags by scanning code content (not just module name)."""
+    tags: set[str] = set()
+    code_lower = code.lower()
+
+    # FSM: case/casez with state-like variables
+    if re.search(r"\bcase[xz]?\s*\(", code_lower) and re.search(
+        r"\b(state|next_state|current_state|curr_state)\b", code_lower
+    ):
+        tags.add("fsm")
+
+    # Sequential: always @(posedge or always_ff
+    if re.search(r"always\s*@\s*\(\s*posedge|always_ff", code_lower):
+        tags.add("sequential")
+
+    # Combinational: only assign statements (no always)
+    if re.search(r"\bassign\s+", code_lower) and not re.search(
+        r"always\s*@", code_lower
+    ):
+        tags.add("combinational")
+
+    # Hierarchical: instantiates other modules (pattern: name instance_name ( )
+    # Exclude: function/task defs, always, if, case, initial
+    inst_pattern = re.compile(
+        r"\b(?!function|task|always|if|case|initial|for|while)\w+\s+\w+\s*\(",
+        re.IGNORECASE,
+    )
+    if inst_pattern.search(code_lower):
+        tags.add("hierarchical")
+
+    # Parameterized
+    if re.search(r"\bparameter\b", code_lower):
+        tags.add("parameterized")
+
+    # Content-based tags
+    if re.search(r"\bfifo\b|\bqueue\b", code_lower):
+        tags.add("fifo")
+    if re.search(r"\bram\b|\bmemory\b|\bsram\b", code_lower):
+        tags.add("memory")
+    if re.search(r"\buart\b|\bserial\b", code_lower):
+        tags.add("serial")
+    if re.search(r"\baxi\b|\bapb\b|\bwishbone\b", code_lower):
+        tags.add("bus")
+
+    return tags
+
+
+def _extract_tags(module_name: str, complexity: str, code: str = "") -> list[str]:
+    """Extract tags from module name, complexity, and code content."""
     tags: set[str] = set()
     name_lower = module_name.lower()
+
+    # Module name patterns
     for pattern, tag in TAG_PATTERNS:
         if re.search(pattern, name_lower):
             tags.add(tag)
-    if complexity == "fsm":
-        tags.add("fsm")
+
+    # Code content patterns (ensures nearly every module gets 1-2 tags)
+    if code:
+        tags.update(_extract_tags_from_code(code))
+
+    # Always add complexity as a tag
+    tags.add(complexity)
+
     return sorted(tags)
 
 
@@ -223,7 +309,7 @@ class VerilogChunker:
 
                 ports = _extract_ports(code)
                 complexity = _classify_complexity(code)
-                tags = _extract_tags(module_name, complexity)
+                tags = _extract_tags(module_name, complexity, code)
                 line_count = len(code.splitlines())
 
                 if has_desc and description:

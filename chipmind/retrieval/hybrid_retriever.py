@@ -56,16 +56,34 @@ class HybridRetriever:
             scores[doc_id] = scores.get(doc_id, 0) + keyword_weight / (RRF_K + rank)
             kw_ranks[doc_id] = rank
 
-        # Sort by RRF score
-        sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)[:k]
+        # Sort by RRF score (descending)
+        sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
 
+        # Deduplicate: for verilog_code by module_name, for eda_doc by section_title
+        # Keep the one with highest rrf_score (first in sorted order)
+        seen: set[str] = set()
         results = []
         for doc_id in sorted_ids:
-            r = dict(doc_store[doc_id])
-            r["rrf_score"] = scores[doc_id]
-            r["semantic_rank"] = sem_ranks.get(doc_id)
-            r["keyword_rank"] = kw_ranks.get(doc_id)
-            results.append(r)
+            r = doc_store[doc_id]
+            chunk_type = r.get("chunk_type", "")
+            if chunk_type == "verilog_code":
+                dedup_key = r.get("module_name") or r.get("chunk_id") or doc_id
+            elif chunk_type == "eda_doc":
+                dedup_key = r.get("section_title") or r.get("chunk_id") or doc_id
+            else:
+                dedup_key = r.get("chunk_id") or doc_id
+
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+
+            out = dict(r)
+            out["rrf_score"] = scores[doc_id]
+            out["semantic_rank"] = sem_ranks.get(doc_id)
+            out["keyword_rank"] = kw_ranks.get(doc_id)
+            results.append(out)
+            if len(results) >= k:
+                break
         return results
 
     def search_code(self, query: str, k: int = 5) -> list[dict]:

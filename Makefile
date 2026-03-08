@@ -1,4 +1,9 @@
-.PHONY: setup install test clean download-data extract-modules scrape-docs chunk build-index
+.PHONY: setup install test clean download-data extract-modules scrape-docs chunk build-index pipeline
+
+# Full pipeline: run in order before chunk + build-index + test
+# download-data and scrape-docs can run in parallel (independent)
+pipeline: download-data scrape-docs extract-modules chunk build-index
+	@echo "Pipeline complete. Run 'make test' to run tests."
 
 setup:
 	python -m venv .venv

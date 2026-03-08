@@ -7,18 +7,21 @@ DESIGN CODE:
 {code}
 
 RULES:
-1. Create a testbench module named tb_{module_name} (e.g., if module is half_adder, use tb_half_adder)
-2. Declare reg for every INPUT port, wire for every OUTPUT port (use exact port names from spec)
-3. Instantiate the design using the exact module name and port names from the spec
-4. For SEQUENTIAL designs (complexity_hint is "sequential" or "fsm"):
+1. Use PLAIN VERILOG ONLY. Do NOT use SystemVerilog constructs.
+2. Do NOT use: logic, always_ff, always_comb, bit, byte, shortint, int, longint
+3. Use instead: reg, wire, always @(posedge clk), always @(*)
+4. Use reg for inputs, wire for outputs in testbench declarations
+5. Create a testbench module named tb_{module_name} (e.g., if module is half_adder, use tb_half_adder)
+6. Declare reg for every INPUT port, wire for every OUTPUT port (use exact port names from spec)
+7. Instantiate the design using the exact module name and port names from the spec
+8. For SEQUENTIAL designs (complexity_hint is "sequential" or "fsm"):
    - Add clock: initial clk = 0; always #5 clk = ~clk;
    - Add reset: initial begin reset = 1; #20; reset = 0; end
    - Use @(posedge clk) or similar for timing
-5. Create at least 5 test vectors
-6. Use $display to print "TEST N: PASS" or "TEST N: FAIL" based on expected vs actual
-7. End with $finish
-8. Use PLAIN VERILOG ONLY — no SystemVerilog (no logic keyword, no always_ff, no always_comb)
-9. No $dumpfile, no $dumpvars
+9. Create at least 5 test vectors
+10. Use $display to print "TEST N: PASS" or "TEST N: FAIL" based on expected vs actual
+11. End with $finish
+12. No $dumpfile, no $dumpvars
 
 OUTPUT: Return ONLY the Verilog testbench code. Nothing else. No ```verilog tags.
 Start with module and end with endmodule.

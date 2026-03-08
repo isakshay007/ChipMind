@@ -32,18 +32,28 @@ class SpecAnalyzerAgent:
         LangGraph nodes return a dict of ONLY the fields they update,
         not the entire state.
         """
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": state["user_query"]},
-            ],
-            temperature=0.2,
-            max_tokens=1000,
-        )
+        user_query = state.get("user_query") or ""
+        if not user_query.strip():
+            return {"spec": self._minimal_spec(""), "total_tokens_used": 0}
 
-        raw = response.choices[0].message.content
-        tokens_used = response.usage.total_tokens if response.usage else 0
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": user_query},
+                ],
+                temperature=0.2,
+                max_tokens=1000,
+            )
+            raw = response.choices[0].message.content or ""
+            tokens_used = response.usage.total_tokens if response.usage else 0
+        except Exception as e:
+            return {
+                "spec": self._minimal_spec(user_query),
+                "total_tokens_used": state.get("total_tokens_used", 0),
+                "error": str(e),
+            }
 
         try:
             spec = self._parse_json(raw)

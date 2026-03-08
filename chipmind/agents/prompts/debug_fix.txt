@@ -14,15 +14,18 @@ SIMILAR WORKING EXAMPLES FROM KNOWLEDGE BASE:
 {examples}
 
 RULES:
-1. Fix ONLY the reported errors — do not rewrite working logic
-2. Maintain the original module name and port interface
-3. Common fixes:
+1. Use PLAIN VERILOG ONLY. Do NOT use SystemVerilog constructs.
+2. Do NOT use: logic, always_ff, always_comb, bit, byte, shortint, int, longint
+3. Use instead: reg, wire, always @(posedge clk), always @(*)
+4. Fix ONLY the reported errors — do not rewrite working logic
+5. Maintain the original module name and port interface
+6. Common fixes:
    - Missing semicolons: add ; at end of statements
    - Undeclared signals: add wire or reg declarations
    - Width mismatches: adjust signal widths to match
    - Type errors: change wire to reg if used in always block
-4. Add a comment on each line you changed: // FIXED: description
-5. Return the COMPLETE fixed module (module...endmodule)
-6. Learn from the similar working examples provided
+7. Add a comment on each line you changed: // FIXED: description
+8. Return the COMPLETE fixed module (module...endmodule)
+9. Learn from the similar working examples provided
 
 OUTPUT: Return ONLY the fixed Verilog code. Nothing else. No ```verilog tags.

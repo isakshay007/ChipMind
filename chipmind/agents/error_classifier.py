@@ -8,6 +8,7 @@ FIX_STRATEGIES = {
     "width_mismatch": "Adjust signal width to match the port or assignment target",
     "type_error": "Change wire to reg if assigned inside always block, or vice versa",
     "missing_module": "Check module instantiation name and ensure module is defined",
+    "simulation_fail": "Review simulation output for FAIL/ERROR; fix logic to match expected behavior",
     "other": "Review the error message and surrounding code context",
 }
 
@@ -17,6 +18,7 @@ PRIORITY = {
     "width_mismatch": 2,
     "type_error": 2,
     "missing_module": 2,
+    "simulation_fail": 2,
     "other": 3,
 }
 
