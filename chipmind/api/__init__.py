@@ -1,0 +1,1 @@
+"""ChipMind FastAPI backend."""

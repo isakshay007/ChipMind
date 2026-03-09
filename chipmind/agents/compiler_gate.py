@@ -45,6 +45,36 @@ class SimResult:
     raw_stderr: str
 
 
+def _patch_verilogeval_testbench(tb_code: str) -> str:
+    """Fix VerilogEval testbench use-before-declaration for iverilog compatibility.
+
+    The testbench uses tb_mismatch in $dumpvars before declaring it.
+    Swap: move 'wire tb_match; wire tb_mismatch = ~tb_match' before the initial block.
+    See: https://github.com/NVlabs/verilog-eval/issues/9
+    """
+    # Match: initial begin ... $dumpfile ... $dumpvars ... end ... wire tb_match ... wire tb_mismatch
+    pattern = re.compile(
+        r"(initial begin\s+\$dumpfile\([^)]+\);\s*\$dumpvars\([^)]+\);\s*end)\s*"
+        r"(wire\s+tb_match;\s*//\s*Verification\s*wire\s+tb_mismatch\s*=\s*~tb_match;)",
+        re.DOTALL,
+    )
+    match = pattern.search(tb_code)
+    if match:
+        init_block, wire_decls = match.group(1), match.group(2)
+        return tb_code[: match.start()] + wire_decls + "\n\n" + init_block + tb_code[match.end() :]
+    # More flexible pattern
+    pattern2 = re.compile(
+        r"(initial begin\s+\$dumpfile\([^)]+\);\s*\$dumpvars\([^)]+\);\s*end)\s*"
+        r"(wire\s+tb_match;.*?wire\s+tb_mismatch\s*=\s*~tb_match;)",
+        re.DOTALL,
+    )
+    match2 = pattern2.search(tb_code)
+    if match2:
+        init_block, wire_decls = match2.group(1), match2.group(2)
+        return tb_code[: match2.start()] + wire_decls + "\n\n\t" + init_block + tb_code[match2.end() :]
+    return tb_code
+
+
 def _classify_error_type(message: str) -> str:
     """Classify error message into error_type."""
     msg_lower = message.lower()
@@ -106,7 +136,7 @@ class CompilerGate:
             output_path = input_path.replace(".v", ".vvp")
 
             result = subprocess.run(
-                ["iverilog", "-o", output_path, input_path],
+                ["iverilog", "-g2012", "-o", output_path, input_path],
                 capture_output=True,
                 text=True,
                 timeout=self.COMPILE_TIMEOUT,
@@ -179,9 +209,9 @@ class CompilerGate:
                 tb_path = f.name
             vvp_path = str(Path(design_path).with_suffix(".vvp"))
 
-            # Compile
+            # Compile (use -g2012 for SystemVerilog support in testbenches)
             compile_result = subprocess.run(
-                ["iverilog", "-o", vvp_path, design_path, tb_path],
+                ["iverilog", "-g2012", "-o", vvp_path, design_path, tb_path],
                 capture_output=True,
                 text=True,
                 timeout=self.COMPILE_TIMEOUT,
@@ -242,6 +272,164 @@ class CompilerGate:
                         Path(p).unlink()
                     except OSError:
                         pass
+
+    def compile_and_simulate_multi(
+        self,
+        files: list[dict],
+        timeout_compile: int = 30,
+        timeout_sim: int = 120,
+    ) -> SimResult:
+        """Compile and simulate multiple Verilog/SystemVerilog files.
+
+        files: list of {"code": str, "filename": str}
+        Example: [
+            {"code": ref_solution, "filename": "ref.sv"},
+            {"code": generated_code, "filename": "design.sv"},
+            {"code": testbench, "filename": "tb.sv"},
+        ]
+
+        1. Write all files to a temp directory
+        2. Compile: iverilog -g2012 -o sim.vvp file1 file2 file3
+        3. Simulate: vvp sim.vvp (with timeout)
+        4. Parse results
+        5. Clean up
+        """
+        if not files:
+            return SimResult(
+                compiled=False,
+                simulated=False,
+                compile_errors=[
+                    CompilerError("", 0, "other", "No files provided", "No files")
+                ],
+                sim_output="",
+                passed=False,
+                raw_stderr="No files",
+            )
+
+        temp_dir = None
+        file_paths: list[str] = []
+        vvp_path = None
+        try:
+            temp_dir = tempfile.mkdtemp(prefix="verilog_eval_")
+            temp_path = Path(temp_dir)
+
+            for f in files:
+                code = f.get("code", "")
+                filename = f.get("filename", "design.v")
+                if not filename.endswith((".v", ".sv")):
+                    filename = filename + ".v"
+                # Patch VerilogEval testbench for iverilog compatibility
+                if "tb.sv" in filename or "tb.v" in filename:
+                    code = _patch_verilogeval_testbench(code)
+                path = temp_path / filename
+                path.write_text(code, encoding="utf-8")
+                file_paths.append(str(path))
+
+            vvp_path = str(temp_path / "sim.vvp")
+
+            # Compile
+            compile_result = subprocess.run(
+                ["iverilog", "-g2012", "-o", vvp_path] + file_paths,
+                capture_output=True,
+                text=True,
+                timeout=timeout_compile,
+                cwd=temp_dir,
+            )
+            errors, _ = self._parse_errors(compile_result.stderr)
+
+            if compile_result.returncode != 0:
+                return SimResult(
+                    compiled=False,
+                    simulated=False,
+                    compile_errors=errors,
+                    sim_output="",
+                    passed=False,
+                    raw_stderr=compile_result.stderr,
+                )
+
+            # Simulate
+            try:
+                sim_result = subprocess.run(
+                    ["vvp", vvp_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_sim,
+                    cwd=temp_dir,
+                )
+                sim_output = sim_result.stdout or ""
+                raw_stderr = sim_result.stderr or ""
+
+                # Pass/fail: VerilogEval uses "Mismatches: 0 in N samples"
+                output_upper = sim_output.upper()
+                failed = (
+                    "FAIL" in output_upper
+                    or "ERROR" in output_upper
+                    or "TIMEOUT" in output_upper
+                )
+                # VerilogEval: "Mismatches: 0 in N samples" = pass
+                mismatch_match = re.search(
+                    r"Mismatches:\s*(\d+)\s+in\s+\d+\s+samples",
+                    sim_output,
+                    re.IGNORECASE,
+                )
+                if mismatch_match:
+                    mismatches = int(mismatch_match.group(1))
+                    passed = not failed and mismatches == 0 and sim_result.returncode == 0
+                else:
+                    # Fallback: no FAIL/ERROR/MISMATCH
+                    passed = (
+                        not failed
+                        and "MISMATCH" not in output_upper
+                        and sim_result.returncode == 0
+                    )
+
+                return SimResult(
+                    compiled=True,
+                    simulated=True,
+                    compile_errors=[],
+                    sim_output=sim_output,
+                    passed=passed,
+                    raw_stderr=raw_stderr,
+                )
+            except subprocess.TimeoutExpired:
+                return SimResult(
+                    compiled=True,
+                    simulated=False,
+                    compile_errors=[],
+                    sim_output="",
+                    passed=False,
+                    raw_stderr="Simulation timed out",
+                )
+        except subprocess.TimeoutExpired:
+            return SimResult(
+                compiled=False,
+                simulated=False,
+                compile_errors=[
+                    CompilerError(
+                        "", 0, "other", "Compilation timed out", "Compilation timed out"
+                    )
+                ],
+                sim_output="",
+                passed=False,
+                raw_stderr="Compilation timed out",
+            )
+        except Exception as e:
+            return SimResult(
+                compiled=False,
+                simulated=False,
+                compile_errors=[
+                    CompilerError("", 0, "other", str(e), str(e))
+                ],
+                sim_output="",
+                passed=False,
+                raw_stderr=str(e),
+            )
+        finally:
+            if temp_dir and Path(temp_dir).exists():
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except OSError:
+                    pass
 
     def _parse_errors(self, stderr: str) -> tuple[list[CompilerError], list[str]]:
         """Parse iverilog stderr into structured errors and warnings."""

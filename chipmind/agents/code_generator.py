@@ -61,6 +61,9 @@ class CodeGeneratorAgent:
             raw = response.choices[0].message.content or ""
             tokens_used = response.usage.total_tokens if response.usage else 0
         except Exception as e:
+            import traceback
+            print(f"ERROR in code_generator.generate: {e}")
+            traceback.print_exc()
             return {
                 "generated_code": "",
                 "retrieved_modules": retrieved,
@@ -122,7 +125,10 @@ class CodeGeneratorAgent:
             )
             raw = response.choices[0].message.content or ""
             tokens_used = response.usage.total_tokens if response.usage else 0
-        except Exception:
+        except Exception as e:
+            import traceback
+            print(f"ERROR in code_generator.debug_fix: {e}")
+            traceback.print_exc()
             return {"generated_code": code, "debug_context": retrieved}
 
         # Step 5: Clean response

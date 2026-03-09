@@ -24,6 +24,7 @@ RULES:
    - Undeclared signals: add wire or reg declarations
    - Width mismatches: adjust signal widths to match
    - Type errors: change wire to reg if used in always block
+   - Double declaration: if output is in port list and assigned in always block, use 'output reg name' in port list; do NOT re-declare inside module body
 7. Add a comment on each line you changed: // FIXED: description
 8. Return the COMPLETE fixed module (module...endmodule)
 9. Learn from the similar working examples provided

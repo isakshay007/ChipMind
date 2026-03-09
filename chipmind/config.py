@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     GROQ_API_KEY: str | None = None
     TOGETHER_API_KEY: str | None = None
+    NVIDIA_API_KEY: str | None = None
 
     # LLM Configuration
     LLM_PROVIDER: str = "groq"

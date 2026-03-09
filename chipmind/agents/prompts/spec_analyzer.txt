@@ -18,7 +18,8 @@ Given a description, extract:
    "active-high enable", "registered output")
 
 Rules:
-- Always include clk and reset inputs for sequential/fsm designs
+- Do NOT add clk or reset unless the description explicitly mentions them
+- Only include clk and reset for designs that clearly require them (sequential, FSM)
 - Default to 1-bit signals unless width is specified or implied
 - If the description is ambiguous, make reasonable assumptions
   and note them in constraints

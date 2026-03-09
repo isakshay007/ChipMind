@@ -1,0 +1,26 @@
+{
+  "baseline": {
+    "pass_at_1": 0.5128205128205128,
+    "syntax_rate": 0.8589743589743589,
+    "avg_iterations": 0,
+    "avg_time": 20.797644711457767,
+    "avg_tokens": 576.3397435897435,
+    "total_problems": 156
+  },
+  "rag_only": {
+    "pass_at_1": 0.47435897435897434,
+    "syntax_rate": 0.8910256410256411,
+    "avg_iterations": 0,
+    "avg_time": 0.25420841345420253,
+    "avg_tokens": 810.5320512820513,
+    "total_problems": 156
+  },
+  "chipmind_agentic": {
+    "pass_at_1": 0.5897435897435898,
+    "syntax_rate": 0.9551282051282052,
+    "avg_iterations": 2.019230769230769,
+    "avg_time": 42.33842706527465,
+    "avg_tokens": 2962.301282051282,
+    "total_problems": 156
+  }
+}

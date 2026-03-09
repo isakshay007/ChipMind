@@ -11,7 +11,7 @@ RULES:
 1. Use PLAIN VERILOG ONLY. Do NOT use SystemVerilog constructs.
 2. Do NOT use: logic, always_ff, always_comb, bit, byte, shortint, int, longint
 3. Use instead: reg, wire, always @(posedge clk), always @(*)
-4. Declare outputs as reg if they are assigned inside always blocks
+4. If an output is assigned in an always block, declare it as 'output reg name' in the port list. Do NOT re-declare it inside the module body.
 5. Generate ONLY the Verilog module code — no explanation, no markdown
 6. Start with `module` and end with `endmodule`
 7. Follow the exact module name from the specification
