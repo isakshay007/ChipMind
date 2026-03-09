@@ -37,6 +37,8 @@ class ChipMindCLI:
         self.generations_count = 0
         self.session_history = []
         self.last_state = {}
+        # Tracks scenario for /explain: "success" | "failed" | "load_fix"
+        self.last_result = {}
 
         # 0. Setup prompt_toolkit commands
         self.slash_commands = [
@@ -362,20 +364,78 @@ class ChipMindCLI:
                 self.console.print(f"[red]Error reading file: {e}[/]")
 
     def _cmd_explain(self):
+        """LLM explains the last generated/loaded design. Uses last_result status for context-aware prompts."""
         code = self.last_state.get("code")
         if not code:
             self.console.print("[red]No code to explain. Generate something first.[/]")
             return
-            
-        prompt = f"Explain this Verilog module in simple terms. What does it do? What are inputs and outputs? Keep it under 5 sentences.\n\n```verilog\n{code}\n```"
+
+        status = self.last_result.get("status", "success")
+        final_code = self.last_result.get("final_code", code)
+
+        if status == "success":
+            prompt = f"""Explain this Verilog module: what does it do, inputs, outputs, behavior.
+Keep it under 5 sentences.
+
+```verilog
+{final_code}
+```"""
+        elif status == "failed":
+            last_errors = self.last_result.get("last_errors", [])
+            errors_str = "\n".join(
+                f"  - Line {e.get('line', '?')}: [{e.get('error_type', 'error')}] {e.get('message', '')}"
+                for e in last_errors[:10]
+            )
+            prompt = f"""This Verilog module failed compilation/simulation after multiple fix attempts.
+Explain: what the code tries to do, what the remaining errors are,
+and suggest what a human designer should check.
+
+Code:
+```verilog
+{final_code}
+```
+
+Errors:
+{errors_str}"""
+        elif status == "load_fix":
+            original = self.last_result.get("original_loaded_code", "")
+            bugs = self.last_result.get("errors_from_first_compile", [])
+            bugs_str = "\n".join(
+                f"  - Line {e.get('line', '?')}: [{e.get('error_type', 'error')}] {e.get('message', '')}"
+                for e in bugs[:10]
+            )
+            prompt = f"""This Verilog module was loaded from a file and had bugs that were fixed.
+Explain: what the original bugs were, how they were fixed, and what
+the corrected module does.
+
+Original code:
+```verilog
+{original}
+```
+
+Fixed code:
+```verilog
+{final_code}
+```
+
+Bugs found:
+{bugs_str}"""
+        else:
+            prompt = f"""Explain this Verilog module: what does it do, inputs, outputs, behavior.
+Keep it under 5 sentences.
+
+```verilog
+{final_code}
+```"""
+
         messages = [
             {"role": "system", "content": "You are an expert hardware engineer."},
             {"role": "user", "content": prompt}
         ]
-        
-        with self.console.status("[bold cyan]Analyzing design...") as status:
-            explanation, _ = self._llm_call(messages, temperature=0.2, max_tokens=500)
-            
+
+        with self.console.status("[bold cyan]Analyzing design..."):
+            explanation, _ = self._llm_call(messages, temperature=0.2, max_tokens=800)
+
         self.console.print(Panel(Markdown(explanation), title="Explanation", border_style="cyan"))
 
     def _cmd_history(self):
@@ -538,10 +598,9 @@ class ChipMindCLI:
             "sim_output": ""
         }
         
-        self._run_compile_and_simulate(code, tb_code, path.stem)
+        self._run_compile_and_simulate(code, tb_code, path.stem, from_load=True)
 
-    def _run_compile_and_simulate(self, code, tb_code, module_name):
-        print("DEBUG: entering _run_compile_and_simulate")
+    def _run_compile_and_simulate(self, code, tb_code, module_name, from_load=False):
         with self.console.status("[bold cyan]Compiling with Icarus Verilog...") as status:
             sim_result = self.compiler.compile_and_simulate(code, tb_code) if tb_code else self.compiler.compile(code)
             
@@ -556,7 +615,8 @@ class ChipMindCLI:
                 
             ans = input("\nWould you like ChipMind to fix this? (y/n): ").strip().lower()
             if ans == 'y':
-                self._run_interactive_debug_loop(code, tb_code, current_errors)
+                first_errors = [{"line": getattr(e, "line", 0), "message": getattr(e, "message", ""), "error_type": getattr(e, "error_type", "other")} for e in current_errors] if current_errors else []
+                self._run_interactive_debug_loop(code, tb_code, current_errors, original_code=code if from_load else None, errors_from_first_compile=first_errors if from_load else None)
         else:
             self.console.print("  ✓ [bold green]Compilation PASSED[/]")
             if tb_code:
@@ -566,13 +626,16 @@ class ChipMindCLI:
                 if sim_result.passed:
                     self.console.print("  ✓ [bold green]Simulation PASSED[/]")
                     self.last_state["sim_passed"] = True
+                    self.last_result = {"status": "success", "final_code": code}
                 else:
                     self.console.print("  ✗ [bold red]Simulation FAILED[/]")
                     ans = input("\nWould you like ChipMind to fix the simulation failure? (y/n): ").strip().lower()
                     if ans == 'y':
                         mock_error = [{"line": 0, "error_type": "simulation_fail", "message": f"Simulation failed. Output: {sim_result.sim_output[:300]}"}]
-                        self._run_interactive_debug_loop(code, tb_code, mock_error)
+                        first_errors = mock_error if from_load else None
+                        self._run_interactive_debug_loop(code, tb_code, mock_error, original_code=code if from_load else None, errors_from_first_compile=first_errors)
             else:
+                self.last_result = {"status": "success", "final_code": code}
                 ans = input("\nGenerate a testbench? (y/n): ").strip().lower()
                 if ans == 'y':
                     with self.console.status("[bold cyan]📝 Generating testbench...") as status:
@@ -582,7 +645,7 @@ class ChipMindCLI:
                     self.console.print(f"  ┃ Generated {len(tb_code.splitlines())} lines", style="dim")
                     self._run_compile_and_simulate(code, tb_code, module_name)
 
-    def _run_interactive_debug_loop(self, code, tb_code, current_errors):
+    def _run_interactive_debug_loop(self, code, tb_code, current_errors, original_code=None, errors_from_first_compile=None):
         spec = self.last_state.get('spec', {"module_name": "external_design"})
         iteration_history = self.last_state.get('history', [])
         
@@ -655,6 +718,22 @@ class ChipMindCLI:
         self.last_state["history"] = iteration_history
         self.last_state["sim_passed"] = sim_passed
         self.last_state["sim_output"] = sim_output
+
+        # Set last_result for /explain: load_fix scenario when we came from /load + fix
+        if original_code is not None and errors_from_first_compile is not None:
+            self.last_result = {
+                "status": "load_fix",
+                "final_code": code,
+                "original_loaded_code": original_code,
+                "errors_from_first_compile": errors_from_first_compile,
+            }
+        elif not is_success:
+            # Debug loop exhausted from /compile (not generate flow) - treat as failed
+            last_errors = []
+            if iteration_history:
+                for e in iteration_history[-1].get("errors", []):
+                    last_errors.append(e if isinstance(e, dict) else {"line": getattr(e, "line", 0), "message": getattr(e, "message", ""), "error_type": getattr(e, "error_type", "other")})
+            self.last_result = {"status": "failed", "final_code": code, "last_errors": last_errors}
         
         self.console.print(f"✅ Debug Flow {'Success' if is_success else 'Partial/Failed'}", style="bold green" if is_success else "bold yellow")
         self._print_verilog_code(code, spec.get('module_name', 'design') + ".v", is_success)
@@ -880,6 +959,20 @@ class ChipMindCLI:
             "sim_passed": sim_passed,
             "sim_output": sim_output
         }
+        # Set last_result for /explain scenario
+        if is_success:
+            self.last_result = {"status": "success", "final_code": code}
+        else:
+            last_errors = []
+            if iteration_history:
+                last_entry = iteration_history[-1]
+                raw = last_entry.get("errors", [])
+                for e in raw:
+                    if isinstance(e, dict):
+                        last_errors.append(e)
+                    else:
+                        last_errors.append({"line": getattr(e, "line", 0), "message": getattr(e, "message", ""), "error_type": getattr(e, "error_type", "other")})
+            self.last_result = {"status": "failed", "final_code": code, "last_errors": last_errors}
         self.session_history.append({
             "query": query,
             "status": status_label,
