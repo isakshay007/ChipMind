@@ -8,6 +8,10 @@ version = "0.1.0"
 description = "ChipMind - AI-powered chip design assistant"
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    { name = "Akshay Keerthi AS" }
+]
+license = { text = "MIT" }
 dependencies = [
     "langchain>=0.3.0",
     "langgraph>=0.2.0",

@@ -1,4 +1,4 @@
-.PHONY: setup install test clean download-data extract-modules scrape-docs chunk build-index pipeline eval-quick eval-full eval-resume analyze-rag api dashboard docker-build docker-run docker-stop cli
+.PHONY: setup install test clean download-data extract-modules scrape-docs chunk build-index pipeline eval-quick eval-full eval-resume analyze-rag api dashboard docker-build docker-run docker-stop cli setup-github
 
 # Full pipeline: run in order before chunk + build-index + test
 # download-data and scrape-docs can run in parallel (independent)
@@ -74,3 +74,8 @@ docker-stop:
 # CLI
 cli:
 	python -m chipmind.cli
+
+# GitHub repository setup (requires: gh auth login)
+setup-github:
+	chmod +x scripts/setup-github.sh
+	./scripts/setup-github.sh

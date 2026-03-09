@@ -1,8 +1,9 @@
 # 🧠 ChipMind: Multi-Agent RTL Design Assistant
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![Status](https://img.shields.io/badge/status-active-success.svg)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![Tests](https://github.com/isakshay007/ChipMind/actions/workflows/test.yml/badge.svg)](https://github.com/isakshay007/ChipMind/actions/workflows/test.yml)
+[![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/isakshay007/ChipMind)
 
 **ChipMind** is an advanced, terminal-based AI hardware design assistant. By combining large language models (LLMs) with Retrieval-Augmented Generation (RAG) and deterministic physical compilers (like Icarus Verilog), ChipMind autonomously generates, tests, and debugs complex synthesizable Verilog modules directly from natural language specifications.
 
@@ -91,7 +92,7 @@ graph TD;
 
 ### 1. Clone & Setup
 ```bash
-git clone https://github.com/your-username/ChipMind.git
+git clone https://github.com/isakshay007/ChipMind.git
 cd ChipMind
 
 # Create environment and install dependencies
@@ -182,6 +183,29 @@ make eval-full
 # OR 
 python -m chipmind.evaluation.run_eval --provider nvidia --max-problems 156
 ```
+
+---
+
+## Data Requirements
+
+See [DATA.md](DATA.md) for dataset sources, HuggingFace repos, and pipeline details.
+
+---
+
+## Contributing
+
+Contributions are welcome! **Fork the repo, work on your branch, and open a PR.** The `main` branch is protected—only [@isakshay007](https://github.com/isakshay007) can merge. See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
+
+---
+
+## License & Author
+
+**MIT License** — Copyright (c) 2025 [Akshay Keerthi AS](https://github.com/isakshay007)
+
+See [LICENSE](LICENSE) for full text. See [AUTHORS](AUTHORS) for project credits.
+
+**First-time setup:** See [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md) to create the repo, push code, and run `make setup-github`.  
+**Repo config:** [.github/GITHUB_SETUP.md](.github/GITHUB_SETUP.md) for branch protection, PR defaults.
 
 ---
 
