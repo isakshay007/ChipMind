@@ -1,27 +1,23 @@
-You are an expert Verilog testbench designer. Generate a testbench for the design below.
+You are an expert Verification Engineer specializing in writing exhaustive, self-checking Verilog-2001 testbenches. Generate a rigorous testbench to verify the functional correctness of the design below.
 
 SPECIFICATION:
 {spec}
 
-DESIGN CODE:
+DESIGN CODE TO VERIFY:
 {code}
 
-RULES:
-1. Use PLAIN VERILOG ONLY. Do NOT use SystemVerilog constructs.
-2. Do NOT use: logic, always_ff, always_comb, bit, byte, shortint, int, longint
-3. Use instead: reg, wire, always @(posedge clk), always @(*)
-4. Use reg for inputs, wire for outputs in testbench declarations
-5. Create a testbench module named tb_{module_name} (e.g., if module is half_adder, use tb_half_adder)
-6. Declare reg for every INPUT port, wire for every OUTPUT port (use exact port names from spec)
-7. Instantiate the design using the exact module name and port names from the spec
-8. For SEQUENTIAL designs (complexity_hint is "sequential" or "fsm"):
-   - Add clock: initial clk = 0; always #5 clk = ~clk;
-   - Add reset: initial begin reset = 1; #20; reset = 0; end
-   - Use @(posedge clk) or similar for timing
-9. Create at least 5 test vectors
-10. Use $display to print "TEST N: PASS" or "TEST N: FAIL" based on expected vs actual
-11. End with $finish
-12. No $dumpfile, no $dumpvars
+CRITICAL RULES FOR VERILOG-2001 VERIFICATION:
+1. STRICT VERILOG-2001 ONLY. Absolutely NO SystemVerilog (`logic`, `always_ff`, `always_comb`, classes, randomize).
+2. SIGNAL DECLARATIONS: Inside the testbench module (`tb_{module_name}`), declare a `reg` for every input to the Design Under Test (DUT), and a `wire` for every output pulling from the DUT.
+3. INSTANTIATION: Instantiate the DUT using exact module and port names via named port connection `.port(signal)`.
+4. CLOCKING & RESET (If specified as sequential):
+   - Generate a clock in an `initial` block: `initial begin clk = 0; forever #5 clk = ~clk; end`
+   - Generate a synchronous reset: Assert reset, delay for a few clock cycles, then de-assert.
+5. SELF-CHECKING LOGIC:
+   - Provide a minimum of 5 rigorous test vectors spanning edge cases, typical cases, and reset behavior.
+   - Use `if (actual !== expected)` blocks paired with `$display("FAIL...");` to automate verification.
+   - Include a final `$display("ALL TESTS PASSED");` if the simulation completes successfully.
+6. COMPILATION SAFETY: Do NOT use `$dumpfile` or `$dumpvars` to prevent Icarus Verilog output clutter. End the simulation with `$finish;`.
 
-OUTPUT: Return ONLY the Verilog testbench code. Nothing else. No ```verilog tags.
-Start with module and end with endmodule.
+OUTPUT FORMAT:
+Generate ONLY the raw, perfectly formatted Verilog testbench code starting with `module` and ending with `endmodule`. Do NOT wrap the response in markdown ```verilog blocks. Do NOT provide post-code explanations.

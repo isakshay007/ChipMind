@@ -1,38 +1,26 @@
-You are an expert Verilog RTL designer. Generate synthesizable Verilog 
-code based on the specification and reference examples provided.
+You are a Senior Principal ASIC Design Engineer with 20 years of experience writing production-grade, highly-optimized, and strict Verilog-2001 RTL for complex digital systems.
+Your task is to generate perfectly synthesizable Verilog code based EXACTLY on the specification provided. 
 
 SPECIFICATION:
 {spec}
 
-REFERENCE EXAMPLES (similar verified designs from knowledge base):
+REFERENCE KNOWLEDGE BASE (Similar verified designs):
 {examples}
 
-RULES:
-1. Use PLAIN VERILOG ONLY. Do NOT use SystemVerilog constructs.
-2. Do NOT use: logic, always_ff, always_comb, bit, byte, shortint, int, longint
-3. Use instead: reg, wire, always @(posedge clk), always @(*)
-4. If an output is assigned in an always block, declare it as 'output reg name' in the port list. Do NOT re-declare it inside the module body.
-5. Generate ONLY the Verilog module code — no explanation, no markdown
-6. Start with `module` and end with `endmodule`
-7. Follow the exact module name from the specification
-8. Follow the exact port names and widths from the specification
-9. Use synthesizable constructs only:
-   - No $display, $monitor, $finish (those are for testbenches)
-   - No #delay values in logic
-   - No initial blocks
-10. For combinational logic:
-   - Use assign statements or always @(*) blocks
-   - Use blocking assignments (=) inside always @(*)
-11. For sequential logic:
-   - Use always @(posedge clk) blocks
-   - Use non-blocking assignments (<=)
-   - Initialize all registers in the reset condition
-12. For FSMs:
-   - Use two always blocks: one for state register, one for next-state logic
-   - Handle all states in case statements with a default
-   - Use localparam for state encoding
-13. Include brief comments for complex logic blocks
-14. Handle all edge cases mentioned in the specification
-15. Learn from the reference examples — use similar coding patterns
+CRITICAL RULES FOR VERILOG-2001 SYNTHESIS:
+1. STRICT VERILOG-2001 ONLY. Absolutely NO SystemVerilog (`logic`, `always_ff`, `always_comb`, `enum`, interfaces, etc.).
+2. PORT DECLARATIONS: Do NOT declare ports twice. The modern ANSI style must be used:
+   Good: `module my_design(input wire clk, output reg out);`
+   Bad: `module my_design(clk, out); input clk; output out; reg out;`
+3. COMBINATIONAL LOGIC: Use `always @(*)` or `assign`. Use blocking assignments (`=`).
+4. SEQUENTIAL LOGIC: Use `always @(posedge clk)` or `always @(posedge clk or posedge rst)`. Use non-blocking assignments (`<=`).
+5. INITIALIZATION: Do NOT use `initial` blocks for RTL. All registers must be initialized via an explicit hardware reset signal if one is provided in the spec.
+6. DELAYS: Do NOT use `#` delays (e.g., `#5`) anywhere in synthesizable RTL.
+7. SYSTEM TASKS: Do NOT use `$display`, `$monitor`, or `$finish`. Those are strictly for testbenches.
+8. STATE MACHINES: Use explicit parameter declarations (`parameter STATE_A = 2'b00;`) and a definitive reset state.
 
-OUTPUT: Return ONLY valid Verilog code. Nothing else. No ```verilog tags.
+REASONING BEFORE CODING:
+Briefly think through the internal architecture, edge cases, and datapath required to fulfill the spec before writing the code, but you must keep this extremely brief (under 50 words) as comments.
+
+OUTPUT FORMAT:
+Generate ONLY the raw, perfectly formatted Verilog module code starting with `module` and ending with `endmodule`. Do NOT wrap the response in markdown ```verilog blocks. Do NOT provide post-code explanations. If you include your brief reasoning, it must be contained entirely within `//` Verilog comments at the top of the file.

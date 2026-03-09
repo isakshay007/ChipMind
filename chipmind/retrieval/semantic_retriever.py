@@ -15,9 +15,30 @@ class SemanticRetriever:
     """FAISS-based semantic search using local sentence-transformers embeddings."""
 
     def __init__(self, embedding_model: str = "all-MiniLM-L6-v2"):
+        import os
+        import sys
+        import logging
+        import warnings
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+        os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+        logging.getLogger("transformers").setLevel(logging.ERROR)
+        logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
+        warnings.filterwarnings("ignore")
+        
         from sentence_transformers import SentenceTransformer
 
-        self.model = SentenceTransformer(embedding_model)
+        # Redirect stdout/stderr to completely silence hardcoded HuggingFace C-bindings
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        with open(os.devnull, 'w') as devnull:
+            sys.stdout = devnull
+            sys.stderr = devnull
+            try:
+                self.model = SentenceTransformer(embedding_model)
+            finally:
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
         self.index: faiss.IndexFlatIP | None = None
         self.metadata: list[dict] = []
         self.dim: int = 0
