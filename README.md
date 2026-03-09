@@ -49,8 +49,7 @@ graph TD;
     LLM_Gen --> CompileGate[Compiler Gate];
     TB --> CompileGate;
     
-    CompileGate -- Syntax Error --> ErrorClass[Error Classifier];
-    CompileGate -- Simulation Fail --> ErrorClass;
+    CompileGate -- "Syntax / Sim Error" --> ErrorClass[Error Classifier];
     
     ErrorClass --> DebugAgent[Debug Agent];
     DebugAgent --> LLM_Gen;
